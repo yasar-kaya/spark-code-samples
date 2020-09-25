@@ -1,0 +1,129 @@
+
+DBFS Queries:
+
+-- %fs ls /mnt/training    OR    display(dbutils.fs.ls("dbfs:/mnt/training"))
+
+-- %fs head /mnt/training/Chicago-Crimes-2018.csv   
+
+-- dbutils.fs.mkdirs("/foobar/")
+
+-- dbutils.fs.rm("/test/")
+
+-- df.write.mode("OVERWRITE").partitionBy("id").saveAsTable("myTableManaged")
+   %sql
+   DESCRIBE EXTENDED myTableManaged  (describes contents of a "managed table")
+
+
+Read a file:
+
+-- StructuredDF = (spark.read
+  	.option("delimiter", "\t")
+  	.option("header", True)
+  	.option("timestampFormat", "mm/dd/yyyy hh:mm:ss a")
+  	.option("inferSchema", True)
+  	.csv("/mnt/training/test/test.tsv")
+		  )
+display(wikiWithOptionsDF)
+
+-- from pyspark.sql.types import StructType, StructField, IntegerType, StringType
+
+-- df.printSchema()  (prints the inferred Schema of a dataframe)
+
+-- schema = df.schema  (stores the schema as an object, StructType which is collection of StructField)
+
+-- print(type(object))  (prints the type object, StructType)
+
+-- [field for field in schema]  (shows the objects within Schema, StructFields)
+
+Caching (Persisting) Data
+
+-- df.persist(StorageLevel.MEMORY_AND_DISK)
+
+Performance Optimization Scripts 
+
+-- df.explain()
+
+-- df.rdd.getNumPartitions
+
+-- %timeit df.describe()
+
+-- df.repartition(n) use it to increase number of partitions (might incur high cost with shuffle)
+
+-- df.coalesce(n) use it to reduce number of partitions (ensures no shuffle)
+
+-- df.repartition(5, col("test column")
+
+-- df.storageLevel.useMemory (to see if the df is cached/persisted in memory)
+
+-- sc.defaultParallelism  (shows default parallelism - it is total # of cores in worker nodes)
+
+-- spark.conf.get("spark.sql.shuffle.partitions")  (number of default repartitioning scheme when aggregation functions used)
+
+-- spark.conf.set("spark.sql.shuffle.partitions", "n")  (This changes the number of partitions after a shuffle operation)
+
+Broadcast Threshold
+
+-- threshold = spark.conf.get("spark.sql.autoBroadcastJoinThreshold")
+   print("Threshold: {0:,}".format( int(threshold) ))
+
+-- spark.conf.set("spark.sql.autoBroadcastJoinThreshold", -1)
+
+-- pageviewsDF.join(broadcast(labelsDF), "dow")  (explicitly broadcast the small table for BroadcashHashJoin)
+
+Function to see the number of rows per partition in a dataframe:
+
+-- def printRecordsPerPartition(df):
+  '''
+  Utility method to count & print the number of records in each partition
+  '''
+  print("Per-Partition Counts:")
+  
+  def countInPartition(iterator): 
+    yield __builtin__.sum(1 for _ in iterator)
+    
+  results = (df.rdd                   # Convert to an RDD
+    .mapPartitions(countInPartition)  # For each partition, count
+    .collect()                        # Return the counts to the driver
+  )
+
+  for result in results: 
+    print("* " + str(result))
+
+See Folder Size:
+
+--- snappySize = sum([f.size for f in dbutils.fs.ls(snappyPath)])
+    print(f"Snappy:       {snappySize} bytes")
+
+See Performance:
+
+--- %timeit df.count()
+
+Register a UDF to SparkContext and SparkSession
+
+--- import org.apache.spark.sql.functions.{col, udf}
+    val previouslyCreatedFunction = (s: Long) => {
+  s * s
+}
+    UDFName = udf(previouslyCreatedFunction, LongType())   --- this is when we want to use UDF in dataframe API
+
+    spark.udf.register("SqlUDF", previouslyCreatedFunction, IntegerType()) --- this is when we want to use UDF in Sql Table API
+
+Check if Bucketing Enabled by Default (Bucketing usually used to optimize sort-merge joins for following reads, it leads to shuffle in the write but in the later reading phase, it eliminates shuffling for a join)
+
+--- assert(spark.sessionState.conf.bucketingEnabled, "Bucketing disabled?!")
+
+List Catalog Tables
+
+--- spark.catalog.listTables
+
+Save As Managed Table
+
+--- spark.range(10e4.toLong).write.mode(SaveMode.Overwrite).saveAsTable("t10e4")
+
+To change default join to Shuffle Hash Join, use:
+
+--- spark.sql.join.preferSortMergeJoin (note that sometimes spark by default chooses Merge Sort Join which might not be always ideal.)
+
+See estimate size of an object in JVM Heap Memory
+
+--- SizeEstimator.estimate
